@@ -1,0 +1,17 @@
+.DS_Store
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.playground/
+build/
+DerivedData/
+.build/
+.swiftpm/
+.idea/
+xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+Packages/
+Package.resolved
+*.xcframework.zip
