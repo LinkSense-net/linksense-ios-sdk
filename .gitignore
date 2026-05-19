@@ -15,3 +15,5 @@ xcuserdata/
 Packages/
 Package.resolved
 *.xcframework.zip
+Example/**/Secrets.xcconfig
+CLAUDE.md
