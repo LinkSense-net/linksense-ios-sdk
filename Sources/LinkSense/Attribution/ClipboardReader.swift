@@ -38,7 +38,19 @@ final class ClipboardReader: ClipboardReaderProtocol {
         #if canImport(UIKit)
         if #available(iOS 16.0, *) {
             let pasteboard = UIPasteboard.general
-            if !pasteboard.detectPatterns(for: [.probableWebURL]).contains(.probableWebURL) {
+            // `detectPatterns(for:)` has no synchronous variant; use the
+            // completion-handler form and block the attribution serial
+            // queue (not main) while waiting. 2s cap so a slow pasteboard
+            // service can't stall `/install` indefinitely.
+            var matched = false
+            let semaphore = DispatchSemaphore(value: 0)
+            pasteboard.detectPatterns(for: [.probableWebURL]) { result in
+                if case .success(let patterns) = result {
+                    matched = patterns.contains(.probableWebURL)
+                }
+                semaphore.signal()
+            }
+            guard semaphore.wait(timeout: .now() + 2) == .success, matched else {
                 return nil
             }
             return extract(from: pasteboard.string)
