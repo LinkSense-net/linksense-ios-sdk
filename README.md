@@ -12,7 +12,7 @@ Package Manager; source available per-customer under NDA.
 
 ```swift
 // Package.swift (release)
-.package(url: "https://github.com/jankokalj/linksense-ios.git", from: "0.1.0")
+.package(url: "https://github.com/LinkSense-net/linksense-ios-sdk.git", from: "0.1.0")
 ```
 
 ## Configure
@@ -42,7 +42,7 @@ LinkSense.shared.onDeferredDeepLink { url in
 No IDFA. No raw IDFV (SHA-256-hashed client-side with a per-project salt
 before it ever leaves the device). No device identifiers beyond the
 hashed ID. Full list in
-[PRIVACY.md](https://github.com/jankokalj/linksense-ios/blob/main/PRIVACY.md).
+[PRIVACY.md](https://github.com/LinkSense-net/linksense-ios-sdk/blob/main/PRIVACY.md).
 
 ## License
 

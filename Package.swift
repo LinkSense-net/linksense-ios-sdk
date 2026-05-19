@@ -11,7 +11,7 @@ import PackageDescription
 //
 //   .binaryTarget(
 //     name: "LinkSense",
-//     url: "https://github.com/jankokalj/linksense-ios/releases/download/vX.Y.Z/LinkSense.xcframework.zip",
+//     url: "https://github.com/LinkSense-net/linksense-ios-sdk/releases/download/vX.Y.Z/LinkSense.xcframework.zip",
 //     checksum: "<sha256>"
 //   )
 //
