@@ -25,6 +25,17 @@ public enum LinkSenseError: Error, LocalizedError, Equatable {
     case forbiddenField
     /// Rate-limited (429). `retryAfter` is seconds from now.
     case rateLimited(retryAfter: Int?)
+    /// SDK key is missing, malformed, or unknown (401 UNAUTHORIZED / AUTH_REQUIRED).
+    case unauthorized
+    /// Requested resource does not exist or is not visible to this SDK key (404).
+    case notFound
+    /// Slug is already taken in this project (409 CUSTOM_PATH_EXISTS). Only
+    /// surfaced from `createLink`.
+    case customPathExists
+    /// Request body failed validation (400 INVALID_INPUT). `fieldErrors` is
+    /// the server's per-field detail map (field name → human-readable
+    /// message); empty when the server didn't include one.
+    case invalidInput(fieldErrors: [String: String])
 
     public var errorDescription: String? {
         switch self {
@@ -47,6 +58,21 @@ public enum LinkSenseError: Error, LocalizedError, Equatable {
                 return "Rate limit exceeded. Retry after \(retryAfter) seconds."
             }
             return "Rate limit exceeded. Please slow down."
+        case .unauthorized:
+            return "SDK key is missing, malformed, or unknown."
+        case .notFound:
+            return "Resource not found."
+        case .customPathExists:
+            return "That slug is already in use for this project."
+        case .invalidInput(let fieldErrors):
+            if fieldErrors.isEmpty {
+                return "Request body failed validation."
+            }
+            let detail = fieldErrors
+                .map { "\($0.key): \($0.value)" }
+                .sorted()
+                .joined(separator: ", ")
+            return "Request body failed validation: \(detail)"
         }
     }
 
@@ -55,7 +81,10 @@ public enum LinkSenseError: Error, LocalizedError, Equatable {
         case (.notConfigured, .notConfigured),
              (.invalidSdkKey, .invalidSdkKey),
              (.forbiddenCrossScope, .forbiddenCrossScope),
-             (.forbiddenField, .forbiddenField):
+             (.forbiddenField, .forbiddenField),
+             (.unauthorized, .unauthorized),
+             (.notFound, .notFound),
+             (.customPathExists, .customPathExists):
             return true
         case let (.server(c1, _, s1), .server(c2, _, s2)):
             return c1 == c2 && s1 == s2
@@ -63,6 +92,8 @@ public enum LinkSenseError: Error, LocalizedError, Equatable {
             return r1 == r2
         case let (.decodeFailure(m1), .decodeFailure(m2)):
             return m1 == m2
+        case let (.invalidInput(f1), .invalidInput(f2)):
+            return f1 == f2
         case (.network, .network):
             // URLError / NSError are not Equatable — treat same-case as equal.
             return true

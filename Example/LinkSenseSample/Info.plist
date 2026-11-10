@@ -30,8 +30,6 @@
 	</array>
 	<key>LINKSENSE_SDK_KEY</key>
 	<string>$(LINKSENSE_SDK_KEY)</string>
-	<key>LINKSENSE_BASE_URL</key>
-	<string>$(LINKSENSE_BASE_URL)</string>
 	<key>LINKSENSE_APP_LINK_HOST</key>
 	<string>$(LINKSENSE_APP_LINK_HOST)</string>
 </dict>

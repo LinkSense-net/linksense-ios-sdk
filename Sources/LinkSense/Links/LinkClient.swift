@@ -12,7 +12,7 @@ final class LinkClient {
 
     func create(options: CreateLinkOptions, completion: @escaping (Result<Link, LinkSenseError>) -> Void) {
         let body = CreateLinkRequestBody(options: options)
-        network.send(endpoint: .createLink, body: body, extraHeaders: [:]) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
+        network.send(endpoint: .createLink, body: body) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
             DispatchQueue.main.async {
                 completion(result.map { $0.data })
             }
@@ -20,7 +20,7 @@ final class LinkClient {
     }
 
     func get(id: String, completion: @escaping (Result<Link, LinkSenseError>) -> Void) {
-        network.send(endpoint: .getLink(id: id), body: Optional<EmptyBody>.none, extraHeaders: [:]) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
+        network.send(endpoint: .getLink(id: id), body: nil) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
             DispatchQueue.main.async {
                 completion(result.map { $0.data })
             }
@@ -29,7 +29,7 @@ final class LinkClient {
 
     func update(id: String, options: UpdateLinkOptions, completion: @escaping (Result<Link, LinkSenseError>) -> Void) {
         let body = UpdateLinkRequestBody(options: options)
-        network.send(endpoint: .updateLink(id: id), body: body, extraHeaders: [:]) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
+        network.send(endpoint: .updateLink(id: id), body: body) { (result: Result<NetworkResponse<Link>, LinkSenseError>) in
             DispatchQueue.main.async {
                 completion(result.map { $0.data })
             }
@@ -37,7 +37,7 @@ final class LinkClient {
     }
 
     func delete(id: String, completion: @escaping (Result<Void, LinkSenseError>) -> Void) {
-        network.sendVoid(endpoint: .deleteLink(id: id), body: Optional<EmptyBody>.none) { result in
+        network.sendVoid(endpoint: .deleteLink(id: id)) { result in
             DispatchQueue.main.async { completion(result) }
         }
     }
@@ -101,39 +101,39 @@ private struct CreateLinkRequestBody: Encodable {
     }
 }
 
-/// PATCH body. `Optional<URL?>` (double-optional) semantics: `nil` means
-/// "don't send", `.some(nil)` means "send JSON null to clear the field".
-/// Matches `updateDynamicLinkSdkSchema.strict()` server-side.
+/// PATCH body. `FieldUpdate<T>` tri-state: `.unchanged` omits the field,
+/// `.set(value)` sends the new value, `.clear` sends JSON null to clear
+/// the field. Matches `updateDynamicLinkSdkSchema.strict()` server-side.
 private struct UpdateLinkRequestBody: Encodable {
     let options: UpdateLinkOptions
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        if let name = options.name { try c.encode(name, forKey: .name) }
-        try encodeDoubleOptional(options.desktopUrl, into: &c, key: .desktop_url, transform: { $0.absoluteString })
-        if let tags = options.tags { try c.encode(tags, forKey: .tags) }
-        try encodeDoubleOptional(options.metadata, into: &c, key: .metadata, transform: { $0 })
-        if let flag = options.iosClipboardEnabled { try c.encode(flag, forKey: .ios_clipboard_enabled) }
-        try encodeDoubleOptional(options.iosFallbackUrl, into: &c, key: .ios_fallback_url, transform: { $0.absoluteString })
-        try encodeDoubleOptional(options.androidFallbackUrl, into: &c, key: .android_fallback_url, transform: { $0.absoluteString })
-        try encodeDoubleOptional(options.ogTitle, into: &c, key: .og_title, transform: { $0 })
-        try encodeDoubleOptional(options.ogDescription, into: &c, key: .og_description, transform: { $0 })
-        try encodeDoubleOptional(options.ogImageUrl, into: &c, key: .og_image_url, transform: { $0.absoluteString })
+        try encodeFieldUpdate(options.name, into: &c, key: .name, transform: { $0 })
+        try encodeFieldUpdate(options.desktopUrl, into: &c, key: .desktop_url, transform: { $0.absoluteString })
+        try encodeFieldUpdate(options.tags, into: &c, key: .tags, transform: { $0 })
+        try encodeFieldUpdate(options.metadata, into: &c, key: .metadata, transform: { $0 })
+        try encodeFieldUpdate(options.iosClipboardEnabled, into: &c, key: .ios_clipboard_enabled, transform: { $0 })
+        try encodeFieldUpdate(options.iosFallbackUrl, into: &c, key: .ios_fallback_url, transform: { $0.absoluteString })
+        try encodeFieldUpdate(options.androidFallbackUrl, into: &c, key: .android_fallback_url, transform: { $0.absoluteString })
+        try encodeFieldUpdate(options.ogTitle, into: &c, key: .og_title, transform: { $0 })
+        try encodeFieldUpdate(options.ogDescription, into: &c, key: .og_description, transform: { $0 })
+        try encodeFieldUpdate(options.ogImageUrl, into: &c, key: .og_image_url, transform: { $0.absoluteString })
     }
 
-    private func encodeDoubleOptional<T, Out: Encodable>(
-        _ value: T??,
+    private func encodeFieldUpdate<T, Out: Encodable>(
+        _ field: FieldUpdate<T>,
         into container: inout KeyedEncodingContainer<CodingKeys>,
         key: CodingKeys,
         transform: (T) -> Out
     ) throws {
-        switch value {
-        case .none:
+        switch field {
+        case .unchanged:
             return
-        case .some(.none):
+        case .clear:
             try container.encodeNil(forKey: key)
-        case .some(.some(let unwrapped)):
-            try container.encode(transform(unwrapped), forKey: key)
+        case .set(let value):
+            try container.encode(transform(value), forKey: key)
         }
     }
 

@@ -4,7 +4,7 @@ Native iOS SDK for [LinkSense](https://linksense.net) dynamic-link management
 and deferred deep linking. Closed-source binary distribution via Swift
 Package Manager; source available per-customer under NDA.
 
-- **Minimum iOS**: 14
+- **Minimum iOS**: 16
 - **Distribution**: Swift Package Manager (binary `.xcframework` on release)
 - **Transport**: HTTPS to `https://linksense.net/api/sdk/v1/*`
 
@@ -12,7 +12,7 @@ Package Manager; source available per-customer under NDA.
 
 ```swift
 // Package.swift (release)
-.package(url: "https://github.com/LinkSense-net/linksense-ios-sdk.git", from: "0.1.0")
+.package(url: "https://github.com/LinkSense-net/linksense-ios-sdk.git", from: "0.2.0")
 ```
 
 ## Configure
@@ -37,11 +37,14 @@ LinkSense.shared.onDeferredDeepLink { url in
 }
 ```
 
+The API host (`https://linksense.net`) is baked in at SDK build time and is
+not configurable by integrators.
+
 ## Data collected
 
-No IDFA. No raw IDFV (SHA-256-hashed client-side with a per-project salt
-before it ever leaves the device). No device identifiers beyond the
-hashed ID. Full list in
+No IDFA, and no ATT prompt. The vendor identifier (IDFV) *is* sent, as
+`device_id_hash` — the name is historical and no client-side hashing happens.
+Fingerprint attributes are purged about an hour after the click. Full list in
 [PRIVACY.md](https://github.com/LinkSense-net/linksense-ios-sdk/blob/main/PRIVACY.md).
 
 ## License

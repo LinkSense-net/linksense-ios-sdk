@@ -2,7 +2,6 @@ import Foundation
 
 struct SampleConfig {
     let sdkKey: String
-    let baseURL: URL?
     let appLinkHost: String
 
     static let placeholderKey = "ls_sdk_TODO_SET_LINKSENSE_SDK_KEY_in_Secrets_xcconfig"
@@ -18,14 +17,11 @@ struct SampleConfig {
 
         let sdkKey = (info["LINKSENSE_SDK_KEY"] as? String)?
             .trimmingCharacters(in: .whitespaces) ?? ""
-        let baseURLString = (info["LINKSENSE_BASE_URL"] as? String)?
-            .trimmingCharacters(in: .whitespaces) ?? ""
         let host = (info["LINKSENSE_APP_LINK_HOST"] as? String)?
             .trimmingCharacters(in: .whitespaces) ?? ""
 
         return SampleConfig(
             sdkKey: sdkKey.isEmpty ? placeholderKey : sdkKey,
-            baseURL: baseURLString.isEmpty ? nil : URL(string: baseURLString),
             appLinkHost: host.isEmpty ? "example.invalid" : host
         )
     }

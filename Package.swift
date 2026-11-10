@@ -21,7 +21,7 @@ let package = Package(
     name: "LinkSense",
     // .iOS is the shipping minimum. .macOS is listed only so `swift build`
     // / `swift test` succeed on dev machines — we do not ship a macOS binary.
-    platforms: [.iOS(.v14), .macOS(.v12)],
+    platforms: [.iOS(.v16), .macOS(.v12)],
     products: [
         .library(name: "LinkSense", targets: ["LinkSense"]),
     ],

@@ -61,7 +61,7 @@ final class SampleViewModel: ObservableObject {
             return
         }
         inFlight = true
-        LinkSense.shared.link(withId: id) { [weak self] result in
+        LinkSense.shared.getLink(id: id) { [weak self] result in
             guard let self else { return }
             self.inFlight = false
             switch result {
@@ -81,7 +81,7 @@ final class SampleViewModel: ObservableObject {
         }
         inFlight = true
         let newName = form.updateName.trimmed(defaultTo: "Sample link (updated)")
-        LinkSense.shared.updateLink(id, options: UpdateLinkOptions(name: newName)) { [weak self] result in
+        LinkSense.shared.updateLink(id, options: UpdateLinkOptions(name: .set(newName))) { [weak self] result in
             guard let self else { return }
             self.inFlight = false
             switch result {
@@ -133,6 +133,16 @@ extension LinkSenseError {
             return "Not configured — set LINKSENSE_SDK_KEY in Secrets.xcconfig."
         case .invalidSdkKey:
             return "SDK key format is invalid."
+        case .unauthorized:
+            return "401 Unauthorized — SDK key missing, malformed, or unknown."
+        case .notFound:
+            return "404 Not found."
+        case .customPathExists:
+            return "409 That slug is already in use for this project."
+        case .invalidInput(let fieldErrors):
+            if fieldErrors.isEmpty { return "400 Invalid input." }
+            let detail = fieldErrors.map { "\($0.key): \($0.value)" }.sorted().joined(separator: ", ")
+            return "400 Invalid input — \(detail)"
         case .forbiddenCrossScope:
             return "403 This SDK key cannot modify that link."
         case .forbiddenField:

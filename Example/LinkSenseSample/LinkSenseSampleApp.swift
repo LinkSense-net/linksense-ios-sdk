@@ -10,7 +10,6 @@ struct LinkSenseSampleApp: App {
         LinkSense.shared.configure(
             LinkSenseConfiguration(
                 sdkKey: cfg.sdkKey,
-                baseURL: cfg.baseURL,
                 enableClipboard: false,
                 logLevel: .debug
             )

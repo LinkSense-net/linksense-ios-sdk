@@ -20,9 +20,15 @@
     </array>
 
     <!--
-      Data collected. We deliberately declare only DeviceID (hashed
-      client-side with a per-project salt before the wire) and
+      Data collected: DeviceID (the vendor identifier, IDFV) and
       OtherDiagnosticData (UA / OS / locale / screen fields).
+
+      DeviceID is declared Linked=true: the IDFV is transmitted as-is (no
+      client-side hashing is performed, despite the `device_id_hash` wire
+      field name) and is stored server-side joined to the install record.
+      Tracking stays false — it is never combined with third-party data and
+      never leaves the customer's own project scope.
+
       NOT declared because we do not collect them:
         * NSPrivacyCollectedDataTypeAdvertisingData (no IDFA — we
           never call ATT or read the advertising identifier)
@@ -34,7 +40,7 @@
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeDeviceID</string>
             <key>NSPrivacyCollectedDataTypeLinked</key>
-            <false/>
+            <true/>
             <key>NSPrivacyCollectedDataTypeTracking</key>
             <false/>
             <key>NSPrivacyCollectedDataTypePurposes</key>

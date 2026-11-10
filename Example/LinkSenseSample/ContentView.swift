@@ -71,7 +71,6 @@ private struct ConfigCard: View {
                     .font(.footnote)
             }
             KeyValueRow(key: "SDK key", value: config.maskedSdkKey)
-            KeyValueRow(key: "Base URL", value: config.baseURL?.absoluteString ?? "default (https://linksense.net)")
             KeyValueRow(key: "App-link host", value: config.appLinkHost)
         }
     }

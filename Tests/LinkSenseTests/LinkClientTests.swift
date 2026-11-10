@@ -63,15 +63,15 @@ final class LinkClientTests: XCTestCase {
         XCTAssertNil(json["android_fallback_url"])
     }
 
-    func test_update_with_explicit_nil_encodes_json_null() {
+    func test_update_with_explicit_clear_encodes_json_null() {
         let network = MockNetworkManager()
         let link = try! JSONDecoder().decode(Link.self, from: makeLinkJson())
         network.scripted = [.success(data: link, idempotentReplay: false)]
         let client = LinkClient(network: network)
 
-        var options = UpdateLinkOptions(name: "renamed")
-        // Explicit clear of desktop_url: .some(nil) — encode as JSON null.
-        options.desktopUrl = .some(nil)
+        var options = UpdateLinkOptions(name: .set("renamed"))
+        // Explicit clear of desktop_url — encode as JSON null.
+        options.desktopUrl = .clear
 
         let exp = expectation(description: "update")
         client.update(id: "link-1", options: options) { _ in exp.fulfill() }
@@ -105,8 +105,8 @@ final class LinkClientTests: XCTestCase {
         let client = LinkClient(network: network)
 
         let exp = expectation(description: "update rejected")
-        var options = UpdateLinkOptions(name: "renamed")
-        options.desktopUrl = nil
+        var options = UpdateLinkOptions(name: .set("renamed"))
+        options.desktopUrl = .unchanged
         client.update(id: "link-1", options: options) { result in
             switch result {
             case .success:

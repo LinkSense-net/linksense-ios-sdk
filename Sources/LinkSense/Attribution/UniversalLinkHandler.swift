@@ -21,7 +21,10 @@ enum UniversalLinkHandler {
         return nil
     }
 
-    private static func isValidClickId(_ id: String) -> Bool {
+    /// Validates a `click_id` against the same shape the server's
+    /// `matcher.ts` regex accepts (12 chars, base64url alphabet).
+    /// Internal so `ClipboardReader` can share the validator.
+    internal static func isValidClickId(_ id: String) -> Bool {
         guard id.count == 12 else { return false }
         for ch in id {
             switch ch {

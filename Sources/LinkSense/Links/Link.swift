@@ -123,32 +123,46 @@ public struct CreateLinkOptions: Sendable {
     }
 }
 
+/// Tri-state for `UpdateLinkOptions` fields. Mirrors the Android SDK's
+/// `FieldUpdate<T>` sealed class so the wire shape and developer mental
+/// model match across platforms.
+///
+/// - `unchanged`: field is omitted from the PATCH body.
+/// - `set(value)`: field is encoded with the new value.
+/// - `clear`: field is encoded as JSON `null` (server clears it).
+public enum FieldUpdate<Value: Sendable>: Sendable {
+    case unchanged
+    case set(Value)
+    case clear
+}
+
 /// Fields accepted by `updateLink`. Slug is create-only — customers link
-/// to the URL, so renaming would break references. Pass `nil` to leave a
-/// field unchanged.
+/// to the URL, so renaming would break references. Each field is a
+/// `FieldUpdate<T>` — leave at `.unchanged` to omit, `.set(value)` to
+/// send a new value, `.clear` to send JSON null and clear server-side.
 public struct UpdateLinkOptions: Sendable {
-    public var name: String?
-    public var desktopUrl: URL??
-    public var tags: [String]?
-    public var metadata: [String: LinkMetadataValue]??
-    public var iosClipboardEnabled: Bool?
-    public var iosFallbackUrl: URL??
-    public var androidFallbackUrl: URL??
-    public var ogTitle: String??
-    public var ogDescription: String??
-    public var ogImageUrl: URL??
+    public var name: FieldUpdate<String>
+    public var desktopUrl: FieldUpdate<URL>
+    public var tags: FieldUpdate<[String]>
+    public var metadata: FieldUpdate<[String: LinkMetadataValue]>
+    public var iosClipboardEnabled: FieldUpdate<Bool>
+    public var iosFallbackUrl: FieldUpdate<URL>
+    public var androidFallbackUrl: FieldUpdate<URL>
+    public var ogTitle: FieldUpdate<String>
+    public var ogDescription: FieldUpdate<String>
+    public var ogImageUrl: FieldUpdate<URL>
 
     public init(
-        name: String? = nil,
-        desktopUrl: URL?? = nil,
-        tags: [String]? = nil,
-        metadata: [String: LinkMetadataValue]?? = nil,
-        iosClipboardEnabled: Bool? = nil,
-        iosFallbackUrl: URL?? = nil,
-        androidFallbackUrl: URL?? = nil,
-        ogTitle: String?? = nil,
-        ogDescription: String?? = nil,
-        ogImageUrl: URL?? = nil
+        name: FieldUpdate<String> = .unchanged,
+        desktopUrl: FieldUpdate<URL> = .unchanged,
+        tags: FieldUpdate<[String]> = .unchanged,
+        metadata: FieldUpdate<[String: LinkMetadataValue]> = .unchanged,
+        iosClipboardEnabled: FieldUpdate<Bool> = .unchanged,
+        iosFallbackUrl: FieldUpdate<URL> = .unchanged,
+        androidFallbackUrl: FieldUpdate<URL> = .unchanged,
+        ogTitle: FieldUpdate<String> = .unchanged,
+        ogDescription: FieldUpdate<String> = .unchanged,
+        ogImageUrl: FieldUpdate<URL> = .unchanged
     ) {
         self.name = name
         self.desktopUrl = desktopUrl

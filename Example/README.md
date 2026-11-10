@@ -18,7 +18,6 @@ open LinkSenseSample.xcodeproj
 | xcconfig key               | Android `local.properties` key |
 |----------------------------|--------------------------------|
 | `LINKSENSE_SDK_KEY`        | `linksense.sdkKey`             |
-| `LINKSENSE_BASE_URL`       | `linksense.baseUrl`            |
 | `LINKSENSE_APP_LINK_HOST`  | `linksense.appLinkHost`        |
 
 They flow into the app via `Info.plist` substitution (`$(LINKSENSE_SDK_KEY)`)
@@ -29,10 +28,10 @@ reads them at launch through `SampleConfig.load()`.
 
 Five SwiftUI cards, driven by `SampleViewModel`:
 
-1. **Configuration** — masked SDK key, base URL, app-link host.
+1. **Configuration** — masked SDK key, app-link host.
 2. **Deferred deep link** — URL delivered to `LinkSense.shared.onDeferredDeepLink { }` after `/install`.
 3. **Last universal link** — last URL forwarded through `LinkSense.shared.continueUserActivity(_:handler:)` via `.onContinueUserActivity(NSUserActivityTypeBrowsingWeb)`.
-4. **Link CRUD** — form + four buttons that call `createLink`, `link(withId:)`, `updateLink`, `deleteLink`.
+4. **Link CRUD** — form + four buttons that call `createLink`, `getLink(id:)`, `updateLink`, `deleteLink`.
 5. **Last result** — pretty-printed `Link` on success, mapped `LinkSenseError.userFacingMessage` on failure.
 
 ## Manual test matrix

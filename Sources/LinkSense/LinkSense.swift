@@ -69,7 +69,6 @@ public final class LinkSense: @unchecked Sendable {
             let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
             let storage = UserDefaultsStorage()
             let network = NetworkManager(
-                baseURL: configuration.baseURL,
                 sdkKey: configuration.sdkKey,
                 sdkVersion: SDKVersion.current
             )
@@ -87,9 +86,14 @@ public final class LinkSense: @unchecked Sendable {
         }
     }
 
-    /// Trigger the first-launch `/install` call. Idempotent on every
-    /// subsequent call — the server dedupes on `install_idempotency_key`.
-    /// Safe to call from `application(_:didFinishLaunchingWithOptions:)`.
+    /// Trigger the first-launch `/install` call.
+    ///
+    /// Safe to call from `application(_:didFinishLaunchingWithOptions:)` and
+    /// safe to call repeatedly: once an install has been acknowledged, later
+    /// calls short-circuit without touching the network. A previous attempt
+    /// that failed is resumed here with its original body and idempotency key.
+    /// The handler still fires (with `nil`) on a warm start, so registering
+    /// `onDeferredDeepLink` late never hangs.
     public func start() {
         queue.async { [weak self] in
             guard let self = self else { return }
@@ -148,6 +152,34 @@ public final class LinkSense: @unchecked Sendable {
         return true
     }
 
+    /// Resolve a LinkSense link the user pasted, and claim it as this
+    /// install's attribution if the install has not been attributed yet.
+    ///
+    /// Use this to back your own paste UI — a `PasteButton`, a
+    /// `UIPasteControl`, or a "paste your invite link" text field. It is the
+    /// only clipboard path on iOS 16+ that does not raise a system paste
+    /// alert, because the user's own gesture supplies the consent.
+    ///
+    /// Values without a recognisable `click_id` resolve to `nil`; nothing is
+    /// sent. The handler fires on the main queue.
+    ///
+    /// See also `LinkSensePasteButton`, which wraps this in a drop-in SwiftUI
+    /// control.
+    public func submitPastedLink(
+        _ pasted: String,
+        completion: @escaping (URL?) -> Void
+    ) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            guard let resolver = self.resolver else {
+                Logger.error("submitPastedLink(_:) called before configure(_:)")
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            resolver.submitPastedLink(pasted, handler: completion)
+        }
+    }
+
     // MARK: - Link CRUD (thin passthroughs to the backend)
 
     public func createLink(
@@ -159,8 +191,8 @@ public final class LinkSense: @unchecked Sendable {
         }
     }
 
-    public func link(
-        withId id: String,
+    public func getLink(
+        id: String,
         completion: @escaping (Result<Link, LinkSenseError>) -> Void
     ) {
         withLinkClient(completion: completion) { client in

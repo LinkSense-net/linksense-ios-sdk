@@ -12,16 +12,14 @@ import Foundation
 /// the SDK is closed-source and we don't want to surprise integrators
 /// with transitive deps.
 protocol NetworkManagerProtocol {
-    func send<Request: Encodable, Response: Decodable>(
+    func send<Response: Decodable>(
         endpoint: Endpoint,
-        body: Request?,
-        extraHeaders: [String: String],
+        body: (any Encodable)?,
         completion: @escaping (Result<NetworkResponse<Response>, LinkSenseError>) -> Void
     )
 
-    func sendVoid<Request: Encodable>(
+    func sendVoid(
         endpoint: Endpoint,
-        body: Request?,
         completion: @escaping (Result<Void, LinkSenseError>) -> Void
     )
 }
@@ -32,8 +30,6 @@ struct NetworkResponse<T: Decodable> {
     let idempotentReplay: Bool
 }
 
-struct EmptyBody: Encodable {}
-
 private struct SuccessEnvelope<T: Decodable>: Decodable {
     let data: T
 }
@@ -43,11 +39,11 @@ private struct ErrorEnvelope: Decodable {
     struct ErrorBody: Decodable {
         let code: String
         let message: String
+        let fieldErrors: [String: String]?
     }
 }
 
 final class NetworkManager: NetworkManagerProtocol {
-    private let baseURL: URL
     private let sdkKey: String
     private let sdkVersion: String
     private let session: URLSession
@@ -58,68 +54,90 @@ final class NetworkManager: NetworkManagerProtocol {
     /// for `/install` using this schedule.
     static let defaultBackoffSchedule: [TimeInterval] = [2, 4, 8, 16, 30]
 
+    /// Per-request ceiling, mirroring OkHttp's `readTimeout` on Android
+    /// (`NetworkManager.kt:40-43`). `URLSession.shared` defaults to **60s**,
+    /// which combined with the five-step backoff put the worst-case `/install`
+    /// give-up at roughly seven minutes — long after the user has given up on
+    /// the app. 15s here brings it in line with Android's ~3.
+    static let requestTimeout: TimeInterval = 15
+
+    /// Ceiling for the whole task including retries inside URLSession's own
+    /// resource loading. Android's `callTimeout` equivalent.
+    static let resourceTimeout: TimeInterval = 20
+
     init(
-        baseURL: URL,
         sdkKey: String,
         sdkVersion: String,
-        session: URLSession = .shared
+        session: URLSession? = nil
     ) {
-        self.baseURL = baseURL
         self.sdkKey = sdkKey
         self.sdkVersion = sdkVersion
-        self.session = session
+        self.session = session ?? Self.makeSession()
     }
 
-    func send<Request, Response>(
-        endpoint: Endpoint,
-        body: Request?,
-        extraHeaders: [String: String] = [:],
-        completion: @escaping (Result<NetworkResponse<Response>, LinkSenseError>) -> Void
-    ) where Request: Encodable, Response: Decodable {
-        let request: URLRequest
-        do {
-            request = try buildRequest(endpoint: endpoint, body: body, extraHeaders: extraHeaders)
-        } catch {
-            completion(.failure(.decodeFailure(message: "encode failed: \(error.localizedDescription)")))
-            return
-        }
+    /// A private session rather than `.shared`: the timeouts below are ours to
+    /// set, and mutating `URLSession.shared` would leak SDK policy into the
+    /// host app's own networking.
+    private static func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = requestTimeout
+        config.timeoutIntervalForResource = resourceTimeout
+        // We drive retries ourselves, with jitter and Retry-After — see
+        // AttributionResolver.retryDelay.
+        config.waitsForConnectivity = false
+        config.httpAdditionalHeaders = nil
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }
 
-        session.dataTask(with: request) { data, response, error in
-            if let error = error {
-                completion(.failure(.network(underlying: error)))
-                return
-            }
-            guard let http = response as? HTTPURLResponse else {
-                completion(.failure(.decodeFailure(message: "no HTTPURLResponse")))
-                return
-            }
-            let replayHeader = (http.value(forHTTPHeaderField: "X-LinkSense-Idempotent-Replay") ?? "").lowercased() == "true"
-            if (200..<300).contains(http.statusCode) {
+    func send<Response: Decodable>(
+        endpoint: Endpoint,
+        body: (any Encodable)?,
+        completion: @escaping (Result<NetworkResponse<Response>, LinkSenseError>) -> Void
+    ) {
+        perform(endpoint: endpoint, body: body) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let (data, http)):
+                let replayHeader = (http.value(forHTTPHeaderField: "X-LinkSense-Idempotent-Replay") ?? "").lowercased() == "true"
                 guard let data = data, !data.isEmpty else {
                     completion(.failure(.decodeFailure(message: "empty success body")))
                     return
                 }
                 do {
-                    let decoder = JSONDecoder()
-                    let envelope = try decoder.decode(SuccessEnvelope<Response>.self, from: data)
+                    let envelope = try JSONDecoder().decode(SuccessEnvelope<Response>.self, from: data)
                     completion(.success(NetworkResponse(data: envelope.data, idempotentReplay: replayHeader)))
                 } catch {
                     completion(.failure(.decodeFailure(message: error.localizedDescription)))
                 }
-            } else {
-                completion(.failure(Self.mapErrorResponse(status: http.statusCode, data: data, httpResponse: http)))
             }
-        }.resume()
+        }
     }
 
-    func sendVoid<Request>(
+    func sendVoid(
         endpoint: Endpoint,
-        body: Request?,
         completion: @escaping (Result<Void, LinkSenseError>) -> Void
-    ) where Request: Encodable {
+    ) {
+        perform(endpoint: endpoint, body: nil) { result in
+            switch result {
+            case .failure(let error): completion(.failure(error))
+            case .success: completion(.success(()))
+            }
+        }
+    }
+
+    // MARK: - Internal helpers
+
+    private func perform(
+        endpoint: Endpoint,
+        body: (any Encodable)?,
+        completion: @escaping (Result<(Data?, HTTPURLResponse), LinkSenseError>) -> Void
+    ) {
         let request: URLRequest
         do {
-            request = try buildRequest(endpoint: endpoint, body: body, extraHeaders: [:])
+            request = try buildRequest(endpoint: endpoint, body: body)
         } catch {
             completion(.failure(.decodeFailure(message: "encode failed: \(error.localizedDescription)")))
             return
@@ -135,31 +153,25 @@ final class NetworkManager: NetworkManagerProtocol {
                 return
             }
             if (200..<300).contains(http.statusCode) {
-                completion(.success(()))
+                completion(.success((data, http)))
             } else {
                 completion(.failure(Self.mapErrorResponse(status: http.statusCode, data: data, httpResponse: http)))
             }
         }.resume()
     }
 
-    // MARK: - Internal helpers
-
-    private func buildRequest<Request: Encodable>(
+    private func buildRequest(
         endpoint: Endpoint,
-        body: Request?,
-        extraHeaders: [String: String]
+        body: (any Encodable)?
     ) throws -> URLRequest {
-        let url = baseURL.appendingPathComponent(endpoint.path())
+        let url = BaseURL.value.appendingPathComponent(endpoint.path())
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method
         request.setValue("Bearer \(sdkKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(sdkVersion, forHTTPHeaderField: "X-LinkSense-SDK-Version")
-        for (name, value) in extraHeaders {
-            request.setValue(value, forHTTPHeaderField: name)
-        }
-        if let body = body, !(body is EmptyBody) {
+        if let body = body {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             request.httpBody = try encoder.encode(body)
@@ -167,7 +179,7 @@ final class NetworkManager: NetworkManagerProtocol {
         return request
     }
 
-    private static func mapErrorResponse(status: Int, data: Data?, httpResponse: HTTPURLResponse) -> LinkSenseError {
+    internal static func mapErrorResponse(status: Int, data: Data?, httpResponse: HTTPURLResponse) -> LinkSenseError {
         let decoded: ErrorEnvelope? = {
             guard let data = data, !data.isEmpty else { return nil }
             return try? JSONDecoder().decode(ErrorEnvelope.self, from: data)
@@ -180,8 +192,16 @@ final class NetworkManager: NetworkManagerProtocol {
         case "FORBIDDEN_FIELD":
             return .forbiddenField
         case "RATE_LIMITED":
-            let retryAfter = Int(httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "") ?? nil
+            let retryAfter = Int(httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "")
             return .rateLimited(retryAfter: retryAfter)
+        case "UNAUTHORIZED", "AUTH_REQUIRED":
+            return .unauthorized
+        case "NOT_FOUND":
+            return .notFound
+        case "CUSTOM_PATH_EXISTS":
+            return .customPathExists
+        case "INVALID_INPUT":
+            return .invalidInput(fieldErrors: decoded?.error.fieldErrors ?? [:])
         default:
             return .server(code: code, message: message, status: status)
         }

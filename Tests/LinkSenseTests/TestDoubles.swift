@@ -33,6 +33,16 @@ final class InMemoryStorage: StorageManagerProtocol {
 
     func pendingInstallBody() -> (data: Data, storedAt: Date)? { pending }
     func storePendingInstallBody(_ data: Data) { pending = (data, Date()) }
+    var appInstallIdValue: String?
+
+    func appInstallId() -> String? {
+        return appInstallIdValue
+    }
+
+    func storeAppInstallId(_ id: String) {
+        appInstallIdValue = id
+    }
+
     func clearPendingInstallBody() { pending = nil }
 
     func firstLaunchClipboardRead() -> Bool { clipboardReadDone }
@@ -93,12 +103,11 @@ final class MockNetworkManager: NetworkManagerProtocol {
     var sent: [SentCall] = []
     var scripted: [ScriptedResponse] = []
 
-    func send<Request, Response>(
+    func send<Response: Decodable>(
         endpoint: Endpoint,
-        body: Request?,
-        extraHeaders: [String: String],
+        body: (any Encodable)?,
         completion: @escaping (Result<NetworkResponse<Response>, LinkSenseError>) -> Void
-    ) where Request: Encodable, Response: Decodable {
+    ) {
         sent.append(SentCall(endpoint: endpoint, body: body.flatMap { try? JSONEncoder().encode($0) }))
         let response = scripted.isEmpty ? ScriptedResponse.failure(.network(underlying: NSError(domain: "mock", code: 0))) : scripted.removeFirst()
         DispatchQueue.global().async {
@@ -115,12 +124,11 @@ final class MockNetworkManager: NetworkManagerProtocol {
         }
     }
 
-    func sendVoid<Request>(
+    func sendVoid(
         endpoint: Endpoint,
-        body: Request?,
         completion: @escaping (Result<Void, LinkSenseError>) -> Void
-    ) where Request: Encodable {
-        sent.append(SentCall(endpoint: endpoint, body: body.flatMap { try? JSONEncoder().encode($0) }))
+    ) {
+        sent.append(SentCall(endpoint: endpoint, body: nil))
         let response = scripted.isEmpty ? ScriptedResponse.failure(.network(underlying: NSError(domain: "mock", code: 0))) : scripted.removeFirst()
         DispatchQueue.global().async {
             switch response {
