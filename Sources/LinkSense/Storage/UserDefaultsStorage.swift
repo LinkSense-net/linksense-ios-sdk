@@ -5,8 +5,8 @@ import Foundation
 ///
 /// Keys stored:
 ///   * `first_launch_done` (Bool) — flipped after the first successful
-///     `/install` response; guards iOS 14–15 clipboard reads from firing
-///     on every cold start.
+///     `/install` response; the warm-start guard that stops `/install`
+///     from being re-sent on every cold start.
 ///   * `install_idempotency_key` (String) — 32-char URL-safe random,
 ///     generated once and reused on every retry until `/install` returns
 ///     2xx. Guarantees that a retried install never creates a second row.

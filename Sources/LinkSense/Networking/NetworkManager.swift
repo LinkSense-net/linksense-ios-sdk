@@ -39,7 +39,22 @@ private struct ErrorEnvelope: Decodable {
     struct ErrorBody: Decodable {
         let code: String
         let message: String
-        let fieldErrors: [String: String]?
+        /// Built from the backend's `details: [{field, message}]`
+        /// (`api-response.ts` / `link-service.ts` sdkSchemaError). Plan-gate
+        /// errors send `details` as an object; that is not field-level, so it
+        /// yields no entries instead of failing the whole envelope.
+        let fieldErrors: [String: String]
+
+        private enum CodingKeys: String, CodingKey { case code, message, details }
+        private struct Detail: Decodable { let field: String; let message: String }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            code = try c.decode(String.self, forKey: .code)
+            message = try c.decode(String.self, forKey: .message)
+            let details = (try? c.decodeIfPresent([Detail].self, forKey: .details)) ?? []
+            fieldErrors = Dictionary(details.map { ($0.field, $0.message) }, uniquingKeysWith: { first, _ in first })
+        }
     }
 }
 

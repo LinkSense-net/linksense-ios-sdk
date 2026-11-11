@@ -1,11 +1,10 @@
 # LinkSense iOS SDK
 
 Native iOS SDK for [LinkSense](https://linksense.net) dynamic-link management
-and deferred deep linking. Closed-source binary distribution via Swift
-Package Manager; source available per-customer under NDA.
+and deferred deep linking, distributed as a Swift package.
 
 - **Minimum iOS**: 16
-- **Distribution**: Swift Package Manager (binary `.xcframework` on release)
+- **Distribution**: Swift Package Manager (source)
 - **Transport**: HTTPS to `https://linksense.net/api/sdk/v1/*`
 
 ## Install
@@ -39,6 +38,22 @@ LinkSense.shared.onDeferredDeepLink { url in
 
 The API host (`https://linksense.net`) is baked in at SDK build time and is
 not configurable by integrators.
+
+## Update a link
+
+Fields you leave out are not sent. Optional fields (URLs, social preview,
+`metadata`) also take `.clear`. `name`, `tags` and `iosClipboardEnabled`
+cannot be cleared: set `tags: .set([])` or `iosClipboardEnabled: .set(false)`
+instead.
+
+```swift
+LinkSense.shared.updateLink(
+    linkId,
+    options: UpdateLinkOptions(name: .set("Spring promo"), ogImageUrl: .clear)
+) { result in
+    // Result<Link, LinkSenseError>
+}
+```
 
 ## Data collected
 

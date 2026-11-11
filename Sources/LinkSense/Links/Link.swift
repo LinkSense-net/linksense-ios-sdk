@@ -136,16 +136,30 @@ public enum FieldUpdate<Value: Sendable>: Sendable {
     case clear
 }
 
+/// Set-or-unchanged for `UpdateLinkOptions` fields a link always has a
+/// value for (`name`, `tags`, `iosClipboardEnabled`). The server rejects
+/// `null` for these, so there is no `clear` case. To empty `tags`, set `[]`;
+/// to turn the clipboard off, set `false`.
+///
+/// - `unchanged`: field is omitted from the PATCH body.
+/// - `set(value)`: field is encoded with the new value.
+public enum RequiredFieldUpdate<Value: Sendable>: Sendable {
+    case unchanged
+    case set(Value)
+}
+
 /// Fields accepted by `updateLink`. Slug is create-only — customers link
-/// to the URL, so renaming would break references. Each field is a
-/// `FieldUpdate<T>` — leave at `.unchanged` to omit, `.set(value)` to
-/// send a new value, `.clear` to send JSON null and clear server-side.
+/// to the URL, so renaming would break references. Leave a field at
+/// `.unchanged` to omit it, or `.set(value)` to send a new value. Optional
+/// fields are `FieldUpdate<T>` and also take `.clear` (JSON null, cleared
+/// server-side); `name`, `tags` and `iosClipboardEnabled` are
+/// `RequiredFieldUpdate<T>` and cannot be cleared.
 public struct UpdateLinkOptions: Sendable {
-    public var name: FieldUpdate<String>
+    public var name: RequiredFieldUpdate<String>
     public var desktopUrl: FieldUpdate<URL>
-    public var tags: FieldUpdate<[String]>
+    public var tags: RequiredFieldUpdate<[String]>
     public var metadata: FieldUpdate<[String: LinkMetadataValue]>
-    public var iosClipboardEnabled: FieldUpdate<Bool>
+    public var iosClipboardEnabled: RequiredFieldUpdate<Bool>
     public var iosFallbackUrl: FieldUpdate<URL>
     public var androidFallbackUrl: FieldUpdate<URL>
     public var ogTitle: FieldUpdate<String>
@@ -153,11 +167,11 @@ public struct UpdateLinkOptions: Sendable {
     public var ogImageUrl: FieldUpdate<URL>
 
     public init(
-        name: FieldUpdate<String> = .unchanged,
+        name: RequiredFieldUpdate<String> = .unchanged,
         desktopUrl: FieldUpdate<URL> = .unchanged,
-        tags: FieldUpdate<[String]> = .unchanged,
+        tags: RequiredFieldUpdate<[String]> = .unchanged,
         metadata: FieldUpdate<[String: LinkMetadataValue]> = .unchanged,
-        iosClipboardEnabled: FieldUpdate<Bool> = .unchanged,
+        iosClipboardEnabled: RequiredFieldUpdate<Bool> = .unchanged,
         iosFallbackUrl: FieldUpdate<URL> = .unchanged,
         androidFallbackUrl: FieldUpdate<URL> = .unchanged,
         ogTitle: FieldUpdate<String> = .unchanged,

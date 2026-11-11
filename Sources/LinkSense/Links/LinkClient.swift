@@ -101,19 +101,18 @@ private struct CreateLinkRequestBody: Encodable {
     }
 }
 
-/// PATCH body. `FieldUpdate<T>` tri-state: `.unchanged` omits the field,
-/// `.set(value)` sends the new value, `.clear` sends JSON null to clear
-/// the field. Matches `updateDynamicLinkSdkSchema.strict()` server-side.
+/// PATCH body. `.unchanged` omits the field, `.set(value)` sends the new
+/// value, and `FieldUpdate.clear` sends JSON null to clear the field. Matches `updateDynamicLinkSdkSchema.strict()` server-side.
 private struct UpdateLinkRequestBody: Encodable {
     let options: UpdateLinkOptions
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try encodeFieldUpdate(options.name, into: &c, key: .name, transform: { $0 })
+        try encodeFieldUpdate(options.name, into: &c, key: .name)
         try encodeFieldUpdate(options.desktopUrl, into: &c, key: .desktop_url, transform: { $0.absoluteString })
-        try encodeFieldUpdate(options.tags, into: &c, key: .tags, transform: { $0 })
+        try encodeFieldUpdate(options.tags, into: &c, key: .tags)
         try encodeFieldUpdate(options.metadata, into: &c, key: .metadata, transform: { $0 })
-        try encodeFieldUpdate(options.iosClipboardEnabled, into: &c, key: .ios_clipboard_enabled, transform: { $0 })
+        try encodeFieldUpdate(options.iosClipboardEnabled, into: &c, key: .ios_clipboard_enabled)
         try encodeFieldUpdate(options.iosFallbackUrl, into: &c, key: .ios_fallback_url, transform: { $0.absoluteString })
         try encodeFieldUpdate(options.androidFallbackUrl, into: &c, key: .android_fallback_url, transform: { $0.absoluteString })
         try encodeFieldUpdate(options.ogTitle, into: &c, key: .og_title, transform: { $0 })
@@ -134,6 +133,16 @@ private struct UpdateLinkRequestBody: Encodable {
             try container.encodeNil(forKey: key)
         case .set(let value):
             try container.encode(transform(value), forKey: key)
+        }
+    }
+
+    private func encodeFieldUpdate<T: Encodable>(
+        _ field: RequiredFieldUpdate<T>,
+        into container: inout KeyedEncodingContainer<CodingKeys>,
+        key: CodingKeys
+    ) throws {
+        if case .set(let value) = field {
+            try container.encode(value, forKey: key)
         }
     }
 

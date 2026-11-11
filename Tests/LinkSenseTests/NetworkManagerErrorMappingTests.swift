@@ -9,7 +9,8 @@ final class NetworkManagerErrorMappingTests: XCTestCase {
     private func envelope(code: String, message: String = "x", fieldErrors: [String: String]? = nil) -> Data {
         var error: [String: Any] = ["code": code, "message": message]
         if let fieldErrors = fieldErrors {
-            error["fieldErrors"] = fieldErrors
+            // The backend's wire shape: details: [{field, message}].
+            error["details"] = fieldErrors.map { ["field": $0.key, "message": $0.value] }
         }
         return try! JSONSerialization.data(withJSONObject: ["error": error], options: [])
     }
@@ -87,5 +88,15 @@ final class NetworkManagerErrorMappingTests: XCTestCase {
             httpResponse: httpResponse(status: 429, headers: ["Retry-After": "42"])
         )
         XCTAssertEqual(err, .rateLimited(retryAfter: 42))
+    }
+
+    /// Plan-gate errors send `details` as an object. The envelope must still
+    /// decode, or the real code collapses to `HTTP_403`.
+    func test_object_details_keeps_the_error_code() {
+        let body = try! JSONSerialization.data(withJSONObject: [
+            "error": ["code": "ACCESS_DENIED", "message": "Pro only", "details": ["limit": 1]],
+        ])
+        let err = NetworkManager.mapErrorResponse(status: 403, data: body, httpResponse: httpResponse(status: 403))
+        XCTAssertEqual(err, .server(code: "ACCESS_DENIED", message: "Pro only", status: 403))
     }
 }

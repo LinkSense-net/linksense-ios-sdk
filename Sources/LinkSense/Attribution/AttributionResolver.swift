@@ -154,6 +154,7 @@ final class AttributionResolver {
     func handleUniversalLink(_ url: URL, handler: @escaping (URL?) -> Void) {
         serialQueue.async { [weak self] in
             guard let self = self else { return }
+            self.reportOpen(url)
             if !self.storage.isFirstLaunch() {
                 // Warm path — we have no `/install` to fire, just echo
                 // the URL back so the caller can route in-app.
@@ -163,6 +164,30 @@ final class AttributionResolver {
             let body = self.composeInstallBody(deepLink: url)
             self.sendWithRetry(body: body, scheduleIndex: 0) { outcome in
                 DispatchQueue.main.async { handler(outcome?.deepLink ?? url) }
+            }
+        }
+    }
+
+    /// Tell the backend a link opened the app (`POST /api/sdk/v1/open`).
+    ///
+    /// A Universal Link is matched on-device, so the edge never sees it; this
+    /// report is the only way the open reaches analytics. Fire-and-forget: it
+    /// never delays the deep-link handler, and a failure is only logged.
+    // ponytail: one attempt, no retry — a lost open is one missing analytics
+    // row. Route it through sendWithRetry if open counts must be exact.
+    func reportOpen(_ url: URL) {
+        let fp = fingerprint.collect()
+        let body = OpenBody(
+            platform: "ios",
+            url: url.absoluteString,
+            bundle_id: bundleId,
+            device_id_hash: fp.deviceIDSeed,
+            app_version: fp.appVersion,
+            sdk_version: SDKVersion.current
+        )
+        network.send(endpoint: .open, body: body) { (result: Result<NetworkResponse<OpenResponse>, LinkSenseError>) in
+            if case .failure(let error) = result {
+                Logger.debug("open report failed: \(error)")
             }
         }
     }
@@ -460,6 +485,19 @@ internal struct DeferredMatchResponse: Decodable {
     let confidence: Double
     let ambiguous: Bool
 }
+
+/// `POST /api/sdk/v1/open` — `openBodySchema` in `src/app/api/sdk/v1/open/route.ts`.
+internal struct OpenBody: Codable, Equatable {
+    let platform: String
+    let url: String
+    let bundle_id: String
+    let device_id_hash: String
+    let app_version: String
+    let sdk_version: String
+}
+
+/// The response body is not used; an empty struct decodes any `data` object.
+internal struct OpenResponse: Decodable {}
 
 internal struct InstallResponse: Decodable {
     let app_install_id: String

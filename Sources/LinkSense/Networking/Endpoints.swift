@@ -6,6 +6,7 @@ import Foundation
 enum Endpoint {
     case install
     case deferredMatch
+    case open
     case createLink
     case getLink(id: String)
     case updateLink(id: String)
@@ -13,7 +14,7 @@ enum Endpoint {
 
     var method: String {
         switch self {
-        case .install, .deferredMatch, .createLink:
+        case .install, .deferredMatch, .open, .createLink:
             return "POST"
         case .getLink:
             return "GET"
@@ -30,6 +31,8 @@ enum Endpoint {
             return "/api/sdk/v1/install"
         case .deferredMatch:
             return "/api/sdk/v1/deferred-match"
+        case .open:
+            return "/api/sdk/v1/open"
         case .createLink:
             return "/api/sdk/v1/links"
         case .getLink(let id), .updateLink(let id), .deleteLink(let id):

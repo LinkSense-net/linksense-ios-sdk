@@ -83,6 +83,43 @@ final class LinkClientTests: XCTestCase {
         XCTAssertNil(json["tags"], "tags not in options — must not appear")
     }
 
+    func test_update_sends_set_fields_and_omits_unchanged() {
+        let network = MockNetworkManager()
+        let link = try! JSONDecoder().decode(Link.self, from: makeLinkJson())
+        network.scripted = [.success(data: link, idempotentReplay: false)]
+        let client = LinkClient(network: network)
+
+        let options = UpdateLinkOptions(
+            tags: .set([]),
+            iosClipboardEnabled: .set(false),
+            ogTitle: .clear
+        )
+
+        let exp = expectation(description: "update")
+        client.update(id: "link-1", options: options) { _ in exp.fulfill() }
+        wait(for: [exp], timeout: 5)
+
+        let json = try! JSONSerialization.jsonObject(with: network.sent[0].body!, options: []) as! [String: Any]
+        XCTAssertEqual(Set(json.keys), ["tags", "ios_clipboard_enabled", "og_title"])
+        XCTAssertEqual(json["tags"] as? [String], [])
+        XCTAssertEqual(json["ios_clipboard_enabled"] as? Bool, false)
+        XCTAssertTrue(json["og_title"] is NSNull)
+    }
+
+    func test_name_tags_and_clipboard_cannot_be_cleared() {
+        // The server rejects null for these three, so their type has no
+        // `.clear`. This exhaustive switch stops compiling if one is added.
+        func encodesNull<T>(_ field: RequiredFieldUpdate<T>) -> Bool {
+            switch field {
+            case .unchanged, .set: return false
+            }
+        }
+        let options = UpdateLinkOptions()
+        XCTAssertFalse(encodesNull(options.name))
+        XCTAssertFalse(encodesNull(options.tags))
+        XCTAssertFalse(encodesNull(options.iosClipboardEnabled))
+    }
+
     func test_delete_returns_void_on_2xx() {
         let network = MockNetworkManager()
         network.scripted = [.success(data: (), idempotentReplay: false)]

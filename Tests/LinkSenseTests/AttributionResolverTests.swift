@@ -567,6 +567,12 @@ final class AttributionResolverTests: XCTestCase {
             exp.fulfill()
         }
         wait(for: [exp], timeout: 5)
-        XCTAssertEqual(network.sent.count, 0, "warm path should not hit /install")
+        // The only call is the /open report — the warm path must not hit /install.
+        XCTAssertEqual(network.sent.map { $0.endpoint.path() }, ["/api/sdk/v1/open"])
+        let body = network.lastBody(as: OpenBody.self)
+        XCTAssertEqual(body?.platform, "ios")
+        XCTAssertEqual(body?.url, "https://acme-42.linksense.net/invite?click_id=abcDEF12345_")
+        XCTAssertEqual(body?.bundle_id, "com.acme.app")
+        XCTAssertEqual(body?.sdk_version, SDKVersion.current)
     }
 }

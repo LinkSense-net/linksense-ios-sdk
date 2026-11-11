@@ -23,8 +23,8 @@ document lists every field the SDK sends, when it sends it, and why.
 - `device_id_hash` — the raw IDFV. The name is historical and misleading: no
   client-side hashing is performed. Tracked for correction.
 - `bundle_id`, `app_version`, `sdk_version`, `os_version`
-- `locale`, `timezone_offset`
-- `screen_logical_w`, `screen_logical_h`, `pixel_ratio`
+- `locale`, `language`, `timezone_offset`
+- `screen_logical_w`, `screen_logical_h` (portrait-normalised), `pixel_ratio`
 - `ua` (user-agent string)
 - `clipboard_payload` — the 12-char `click_id` from a LinkSense link on the
   pasteboard. Sent only when `enableClipboard=true`, only on the first launch,
@@ -36,6 +36,26 @@ document lists every field the SDK sends, when it sends it, and why.
   `submitPastedLink(_:)` avoid it because the user's own tap grants access.
 - `deep_link` — inbound Universal Link URL, when the app was launched
   by one.
+
+`/install` is sent once per install. Once the server acknowledges it, later
+launches send nothing. If it fails, the same body (same idempotency key, same
+fingerprint) is kept in UserDefaults and resent on the next cold start, for up
+to 24 hours.
+
+## `/deferred-match` request
+
+Only when `/install` succeeded but matched nothing (no `deep_link`, no
+`match_method`), the SDK asks again up to twice, about 1.5 s and 5 s after the install.
+Each request resends **the same fields as the `/install` body above**,
+including the raw IDFV, plus `app_install_id` (the server's id for the
+install, which the SDK keeps in UserDefaults). No new data is collected for it.
+
+## `/open` request
+
+Each Universal Link forwarded through `continueUserActivity(_:handler:)` sends
+`platform`, the link URL (the server keeps only its path and query),
+`bundle_id`, the raw IDFV as `device_id_hash`, `app_version` and
+`sdk_version`. Nothing else.
 
 ## Subsequent requests
 
