@@ -44,13 +44,15 @@ final class NetworkManagerErrorMappingTests: XCTestCase {
         XCTAssertEqual(err, .notFound)
     }
 
-    func test_custom_path_exists_maps_to_customPathExists() {
-        let err = NetworkManager.mapErrorResponse(
-            status: 409,
-            data: envelope(code: "CUSTOM_PATH_EXISTS"),
-            httpResponse: httpResponse(status: 409)
-        )
-        XCTAssertEqual(err, .customPathExists)
+    func test_slug_codes_map_to_slugExists() {
+        for code in ["CUSTOM_PATH_EXISTS", "SLUG_EXISTS"] {
+            let err = NetworkManager.mapErrorResponse(
+                status: 409,
+                data: envelope(code: code),
+                httpResponse: httpResponse(status: 409)
+            )
+            XCTAssertEqual(err, .slugExists, "code \(code) should map to .slugExists")
+        }
     }
 
     func test_invalid_input_without_fieldErrors_maps_to_empty_dict() {
@@ -87,16 +89,76 @@ final class NetworkManagerErrorMappingTests: XCTestCase {
             data: envelope(code: "RATE_LIMITED"),
             httpResponse: httpResponse(status: 429, headers: ["Retry-After": "42"])
         )
-        XCTAssertEqual(err, .rateLimited(retryAfter: 42))
+        XCTAssertEqual(err, .rateLimited(retryAfterSeconds: 42))
     }
 
-    /// Plan-gate errors send `details` as an object. The envelope must still
-    /// decode, or the real code collapses to `HTTP_403`.
-    func test_object_details_keeps_the_error_code() {
-        let body = try! JSONSerialization.data(withJSONObject: [
-            "error": ["code": "ACCESS_DENIED", "message": "Pro only", "details": ["limit": 1]],
+    func test_rate_limited_without_header_has_nil_retryAfterSeconds() {
+        let err = NetworkManager.mapErrorResponse(
+            status: 429,
+            data: envelope(code: "RATE_LIMITED"),
+            httpResponse: httpResponse(status: 429)
+        )
+        XCTAssertEqual(err, .rateLimited(retryAfterSeconds: nil))
+    }
+
+    private func accessDeniedBody(details: Any?) -> Data {
+        var error: [String: Any] = ["code": "ACCESS_DENIED", "message": "Link limit reached"]
+        if let details = details { error["details"] = details }
+        return try! JSONSerialization.data(withJSONObject: ["error": error])
+    }
+
+    /// Link quota reached: `checkLinkCreationLimit` sends every field.
+    func test_access_denied_with_details() {
+        let body = accessDeniedBody(details: [
+            "upgradeRequired": true, "plan": "starter", "currentUsage": 10, "limit": 10,
         ])
         let err = NetworkManager.mapErrorResponse(status: 403, data: body, httpResponse: httpResponse(status: 403))
-        XCTAssertEqual(err, .server(code: "ACCESS_DENIED", message: "Pro only", status: 403))
+        XCTAssertEqual(err, .accessDenied(AccessDeniedDetails(
+            serverMessage: "Link limit reached",
+            upgradeRequired: true,
+            plan: "starter",
+            currentUsage: 10,
+            limit: 10
+        )))
+    }
+
+    /// No subscription: only `upgradeRequired` and `plan`.
+    func test_access_denied_with_partial_details() {
+        let body = accessDeniedBody(details: ["upgradeRequired": true, "plan": "starter"])
+        let err = NetworkManager.mapErrorResponse(status: 403, data: body, httpResponse: httpResponse(status: 403))
+        XCTAssertEqual(err, .accessDenied(AccessDeniedDetails(
+            serverMessage: "Link limit reached", upgradeRequired: true, plan: "starter"
+        )))
+    }
+
+    /// Platform not allowed: `/install`, `/open`, `/deferred-match` send no details.
+    func test_access_denied_without_details_defaults_upgradeRequired_false() {
+        let err = NetworkManager.mapErrorResponse(
+            status: 403, data: accessDeniedBody(details: nil), httpResponse: httpResponse(status: 403)
+        )
+        XCTAssertEqual(err, .accessDenied(AccessDeniedDetails(serverMessage: "Link limit reached")))
+    }
+
+    /// An array-shaped `details` on ACCESS_DENIED must not break the envelope.
+    func test_access_denied_with_array_details_still_maps() {
+        let body = accessDeniedBody(details: [["field": "x", "message": "y"]])
+        let err = NetworkManager.mapErrorResponse(status: 403, data: body, httpResponse: httpResponse(status: 403))
+        XCTAssertEqual(err, .accessDenied(AccessDeniedDetails(serverMessage: "Link limit reached")))
+    }
+
+    /// No body at all: there is no code to map, so it stays a generic server error.
+    func test_403_with_no_body_is_a_server_error() {
+        let err = NetworkManager.mapErrorResponse(status: 403, data: nil, httpResponse: httpResponse(status: 403))
+        XCTAssertEqual(err, .server(code: "HTTP_403", message: "HTTP 403", status: 403))
+    }
+
+    /// An object-shaped `details` on INVALID_INPUT yields no field errors
+    /// but keeps the code.
+    func test_invalid_input_with_object_details_keeps_the_code() {
+        let body = try! JSONSerialization.data(withJSONObject: [
+            "error": ["code": "INVALID_INPUT", "message": "bad", "details": ["limit": 1]],
+        ])
+        let err = NetworkManager.mapErrorResponse(status: 400, data: body, httpResponse: httpResponse(status: 400))
+        XCTAssertEqual(err, .invalidInput(fieldErrors: [:]))
     }
 }

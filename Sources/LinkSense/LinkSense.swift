@@ -3,7 +3,7 @@ import Foundation
 /// Public entry point for the LinkSense iOS SDK.
 ///
 /// Lifecycle:
-///   1. `LinkSense.shared.configure(...)` — once, at app launch.
+///   1. `try LinkSense.shared.configure(...)` — once, at app launch.
 ///   2. `LinkSense.shared.start()` — kicks off the `/install` post on
 ///      first launch (idempotent on every subsequent start).
 ///   3. `LinkSense.shared.onDeferredDeepLink { url in ... }` — called with
@@ -53,15 +53,17 @@ public final class LinkSense: @unchecked Sendable {
 
     /// Store configuration. Must be called exactly once before any other
     /// method. Subsequent calls are no-ops (we log a warning in `.debug`).
-    public func configure(_ configuration: LinkSenseConfiguration) {
-        queue.sync {
+    ///
+    /// - Throws: `LinkSenseError.invalidSdkKey` when the key doesn't match
+    ///   the `ls_sdk_` format. The SDK stays unconfigured.
+    public func configure(_ configuration: LinkSenseConfiguration) throws {
+        try queue.sync {
             if self.configuration != nil {
                 Logger.warn("configure(_:) called more than once — subsequent call ignored")
                 return
             }
             guard SdkKeyFormat.isValid(configuration.sdkKey) else {
-                Logger.error("Invalid SDK key format — SDK disabled")
-                return
+                throw LinkSenseError.invalidSdkKey
             }
             Logger.configure(level: configuration.logLevel)
             self.configuration = configuration

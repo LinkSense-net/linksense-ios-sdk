@@ -306,7 +306,7 @@ final class AttributionResolverTests: XCTestCase {
         // Retrying before the bucket refills is guaranteed to fail and burns
         // quota that is shared across every device on the project.
         let delay = AttributionResolver.retryDelay(
-            for: .rateLimited(retryAfter: 42),
+            for: .rateLimited(retryAfterSeconds: 42),
             scheduleIndex: 0,
             jitter: { _ in 0 }
         )
@@ -315,7 +315,7 @@ final class AttributionResolverTests: XCTestCase {
 
     func test_retry_after_is_clamped() {
         let delay = AttributionResolver.retryDelay(
-            for: .rateLimited(retryAfter: 99_999),
+            for: .rateLimited(retryAfterSeconds: 99_999),
             scheduleIndex: 0,
             jitter: { _ in 0 }
         )
@@ -324,7 +324,7 @@ final class AttributionResolverTests: XCTestCase {
 
     func test_absent_retry_after_falls_back_to_the_schedule() {
         let delay = AttributionResolver.retryDelay(
-            for: .rateLimited(retryAfter: nil),
+            for: .rateLimited(retryAfterSeconds: nil),
             scheduleIndex: 1,
             jitter: { _ in 0 }
         )

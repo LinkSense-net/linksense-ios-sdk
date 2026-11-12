@@ -40,10 +40,20 @@ private struct ErrorEnvelope: Decodable {
         let code: String
         let message: String
         /// Built from the backend's `details: [{field, message}]`
-        /// (`api-response.ts` / `link-service.ts` sdkSchemaError). Plan-gate
-        /// errors send `details` as an object; that is not field-level, so it
-        /// yields no entries instead of failing the whole envelope.
+        /// (`api-response.ts` / `link-service.ts` sdkSchemaError). Empty when
+        /// `details` is absent or not that array.
         let fieldErrors: [String: String]
+        /// Built from ACCESS_DENIED's object-shaped `details`
+        /// (`{upgradeRequired, plan, currentUsage, limit}`). `nil` when
+        /// `details` is absent or not an object.
+        let accessDenied: AccessDeniedDetail?
+
+        struct AccessDeniedDetail: Decodable {
+            let upgradeRequired: Bool?
+            let plan: String?
+            let currentUsage: Int?
+            let limit: Int?
+        }
 
         private enum CodingKeys: String, CodingKey { case code, message, details }
         private struct Detail: Decodable { let field: String; let message: String }
@@ -52,8 +62,11 @@ private struct ErrorEnvelope: Decodable {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             code = try c.decode(String.self, forKey: .code)
             message = try c.decode(String.self, forKey: .message)
+            // `details` is an array or an object depending on the code. Try
+            // each shape on its own so a mismatch never fails the envelope.
             let details = (try? c.decodeIfPresent([Detail].self, forKey: .details)) ?? []
             fieldErrors = Dictionary(details.map { ($0.field, $0.message) }, uniquingKeysWith: { first, _ in first })
+            accessDenied = try? c.decodeIfPresent(AccessDeniedDetail.self, forKey: .details)
         }
     }
 }
@@ -207,14 +220,23 @@ final class NetworkManager: NetworkManagerProtocol {
         case "FORBIDDEN_FIELD":
             return .forbiddenField
         case "RATE_LIMITED":
-            let retryAfter = Int(httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "")
-            return .rateLimited(retryAfter: retryAfter)
+            let retryAfterSeconds = Int(httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "")
+            return .rateLimited(retryAfterSeconds: retryAfterSeconds)
         case "UNAUTHORIZED", "AUTH_REQUIRED":
             return .unauthorized
         case "NOT_FOUND":
             return .notFound
-        case "CUSTOM_PATH_EXISTS":
-            return .customPathExists
+        case "CUSTOM_PATH_EXISTS", "SLUG_EXISTS":
+            return .slugExists
+        case "ACCESS_DENIED":
+            let details = decoded?.error.accessDenied
+            return .accessDenied(AccessDeniedDetails(
+                serverMessage: message,
+                upgradeRequired: details?.upgradeRequired ?? false,
+                plan: details?.plan,
+                currentUsage: details?.currentUsage,
+                limit: details?.limit
+            ))
         case "INVALID_INPUT":
             return .invalidInput(fieldErrors: decoded?.error.fieldErrors ?? [:])
         default:

@@ -40,5 +40,5 @@ enum SdkKeyFormat {
 /// request so the backend can correlate telemetry to releases. Keep in
 /// sync with the git tag when cutting a release.
 enum SDKVersion {
-    static let current = "0.2.0"
+    static let current = "0.3.0"
 }

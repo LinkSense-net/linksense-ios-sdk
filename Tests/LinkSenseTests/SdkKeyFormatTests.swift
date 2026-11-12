@@ -44,4 +44,18 @@ final class SdkKeyFormatTests: XCTestCase {
         let key = "ls_sdk_1234567g_" + String(repeating: "a", count: 32)
         XCTAssertFalse(SdkKeyFormat.isValid(key))
     }
+
+    func test_configure_throws_invalidSdkKey_for_malformed_key() {
+        let sdk = LinkSense()
+        XCTAssertThrowsError(try sdk.configure(LinkSenseConfiguration(sdkKey: "not-a-key"))) { error in
+            XCTAssertEqual(error as? LinkSenseError, .invalidSdkKey)
+        }
+    }
+
+    func test_configure_accepts_well_formed_key() {
+        let sdk = LinkSense()
+        XCTAssertNoThrow(try sdk.configure(LinkSenseConfiguration(
+            sdkKey: "ls_sdk_12345678_" + String(repeating: "a", count: 32)
+        )))
+    }
 }

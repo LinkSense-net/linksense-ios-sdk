@@ -137,8 +137,13 @@ extension LinkSenseError {
             return "401 Unauthorized — SDK key missing, malformed, or unknown."
         case .notFound:
             return "404 Not found."
-        case .customPathExists:
+        case .slugExists:
             return "409 That slug is already in use for this project."
+        case .accessDenied(let details):
+            if let limit = details.limit, let used = details.currentUsage {
+                return "403 Access denied — \(used)/\(limit) links on \(details.plan ?? "your") plan."
+            }
+            return "403 Access denied — \(details.serverMessage)"
         case .invalidInput(let fieldErrors):
             if fieldErrors.isEmpty { return "400 Invalid input." }
             let detail = fieldErrors.map { "\($0.key): \($0.value)" }.sorted().joined(separator: ", ")
@@ -147,8 +152,8 @@ extension LinkSenseError {
             return "403 This SDK key cannot modify that link."
         case .forbiddenField:
             return "400 Request body contained a disallowed field."
-        case .rateLimited(let retryAfter):
-            if let retryAfter { return "429 Rate limited — retry after \(retryAfter)s." }
+        case .rateLimited(let retryAfterSeconds):
+            if let retryAfterSeconds { return "429 Rate limited — retry after \(retryAfterSeconds)s." }
             return "429 Rate limited."
         case .network(let underlying):
             return "Network error: \(underlying.localizedDescription)"

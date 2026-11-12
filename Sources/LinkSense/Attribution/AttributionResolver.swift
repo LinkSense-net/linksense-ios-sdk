@@ -394,8 +394,8 @@ final class AttributionResolver {
     ) -> TimeInterval {
         let base = schedule[min(scheduleIndex, schedule.count - 1)]
 
-        if case .rateLimited(let retryAfter) = error, let retryAfter = retryAfter, retryAfter > 0 {
-            return min(TimeInterval(retryAfter), maxRetryAfter)
+        if case .rateLimited(let retryAfterSeconds) = error, let retryAfterSeconds = retryAfterSeconds, retryAfterSeconds > 0 {
+            return min(TimeInterval(retryAfterSeconds), maxRetryAfter)
         }
         let spread = base * 0.25
         return max(0.1, base + jitter(-spread...spread))

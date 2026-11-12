@@ -7,7 +7,7 @@ import XCTest
 /// deployed server).
 final class LinkClientTests: XCTestCase {
 
-    private func makeLinkJson(id: String = "link-1") -> Data {
+    private func makeLinkJson(id: String = "link-1", metadata: Any? = nil) -> Data {
         let now = "2026-04-21T10:00:00Z"
         let dict: [String: Any] = [
             "id": id,
@@ -26,11 +26,51 @@ final class LinkClientTests: XCTestCase {
             "created_at": now,
             "updated_at": now,
         ]
-        return try! JSONSerialization.data(withJSONObject: dict, options: [])
+        var withMetadata = dict
+        if let metadata = metadata { withMetadata["metadata"] = metadata }
+        return try! JSONSerialization.data(withJSONObject: withMetadata, options: [])
     }
 
     private func decodeSentBody<T: Decodable>(_ bytes: Data, as type: T.Type) -> T? {
         return try? JSONDecoder().decode(type, from: bytes)
+    }
+
+    func test_link_without_metadata_decodes_nil() {
+        let link = try! JSONDecoder().decode(Link.self, from: makeLinkJson())
+        XCTAssertNil(link.metadata)
+    }
+
+    func test_link_metadata_null_decodes_nil() {
+        let link = try! JSONDecoder().decode(Link.self, from: makeLinkJson(metadata: NSNull()))
+        XCTAssertNil(link.metadata)
+    }
+
+    func test_link_metadata_decodes_every_json_shape() throws {
+        // Raw JSON so number formatting (1 vs 1.5) is exactly what a server sends.
+        let json = """
+        {"id":"link-1","project_id":"p","name":"n","custom_path":"m",
+         "full_url":"https://acme-42.linksense.net/m","tags":[],
+         "created_at":"2026-04-21T10:00:00Z","updated_at":"2026-04-21T10:00:00Z",
+         "metadata":{"s":"hi","i":3,"d":1.5,"t":true,"f":false,"n":null,
+                     "a":[1,"x",null],"o":{"nested":{"deep":2}}}}
+        """
+        let link = try JSONDecoder().decode(Link.self, from: Data(json.utf8))
+        XCTAssertEqual(link.metadata, [
+            "s": .string("hi"),
+            "i": .int(3),
+            "d": .double(1.5),
+            "t": .bool(true),
+            "f": .bool(false),
+            "n": .null,
+            "a": .array([.int(1), .string("x"), .null]),
+            "o": .object(["nested": .object(["deep": .int(2)])]),
+        ])
+    }
+
+    func test_link_metadata_round_trips_through_encode() throws {
+        let value: [String: LinkMetadataValue] = ["a": .array([.double(2.5), .bool(true)]), "o": .object(["k": .int(7)])]
+        let data = try JSONEncoder().encode(value)
+        XCTAssertEqual(try JSONDecoder().decode([String: LinkMetadataValue].self, from: data), value)
     }
 
     func test_create_sends_allowlisted_fields_only() {

@@ -11,7 +11,7 @@ and deferred deep linking, distributed as a Swift package.
 
 ```swift
 // Package.swift (release)
-.package(url: "https://github.com/LinkSense-net/linksense-ios-sdk.git", from: "0.2.0")
+.package(url: "https://github.com/LinkSense-net/linksense-ios-sdk.git", from: "0.3.0")
 ```
 
 ## Configure
@@ -19,7 +19,8 @@ and deferred deep linking, distributed as a Swift package.
 ```swift
 import LinkSense
 
-LinkSense.shared.configure(
+// Throws LinkSenseError.invalidSdkKey if the key is malformed.
+try LinkSense.shared.configure(
     LinkSenseConfiguration(
         sdkKey: "ls_sdk_<project>_<random>",
         enableClipboard: false, // opt-in; see PRIVACY.md
@@ -61,6 +62,33 @@ No IDFA, and no ATT prompt. The vendor identifier (IDFV) *is* sent, as
 `device_id_hash` — the name is historical and no client-side hashing happens.
 Fingerprint attributes are purged about an hour after the click. Full list in
 [PRIVACY.md](https://github.com/LinkSense-net/linksense-ios-sdk/blob/main/PRIVACY.md).
+
+## Cross-SDK API (0.3.0)
+
+The same surface in every LinkSense SDK. Names differ only where the platform idiom does.
+
+| Concept | iOS (Swift) | Android (Kotlin) | Flutter (Dart) | React Native (TS) |
+|---|---|---|---|---|
+| Configure (throws on a malformed key) | `try LinkSense.configure(_:)` | `LinkSense.configure(context, config)` | `await LinkSense.configure(config)` | `LinkSense.configure(config)` |
+| Start / deferred link | `start()` + `onDeferredDeepLink { }` | `start()` + `onDeferredDeepLink { }` | `start()` + `deferredDeepLinks` stream | `await start()` |
+| Link opens | `continueUserActivity(_:handler:)` | `handleIntent(intent) { }` | `deepLinks` stream | `onDeepLink(listener)` |
+| Pasted link | `submitPastedLink(_:completion:)` | `submitPastedLink(text)` (no-op, returns null) | `submitPastedLink(text)` | `submitPastedLink(text)` |
+| Create / get / update / delete | `createLink` / `getLink` / `updateLink` / `deleteLink` | same, `suspend` | same, `Future` | same, `Promise` |
+| Update: leave field / set / clear | `.unchanged` / `.set(v)` / `.clear` | `FieldUpdate.Unchanged` / `Set(v)` / `Clear` | `null` / `FieldUpdate.set(v)` / `FieldUpdate.clear()` | `undefined` / `v` / `CLEAR` |
+| Link metadata | `link.metadata` | `link.metadata` | `link.metadata` | `link.metadata` |
+
+| Error | iOS `LinkSenseError` | Android `LinkSenseError` | Flutter | RN `error.code` |
+|---|---|---|---|---|
+| Not configured | `.notConfigured` | `NotConfigured` | `LinkSenseNotConfiguredException` | `NOT_CONFIGURED` |
+| Malformed SDK key | `.invalidSdkKey` | `InvalidSdkKey` | `LinkSenseInvalidSdkKeyException` | `INVALID_SDK_KEY` |
+| Bad / revoked key | `.unauthorized` | `Unauthorized` | `LinkSenseUnauthorizedException` | `UNAUTHORIZED` |
+| Plan limit / platform not allowed | `.accessDenied(details)` | `AccessDenied(...)` | `LinkSenseAccessDeniedException` | `ACCESS_DENIED` + `error.accessDenied` |
+| Rate limited | `.rateLimited(retryAfterSeconds:)` | `RateLimited(retryAfterSeconds)` | `LinkSenseRateLimitedException.retryAfterSeconds` | `RATE_LIMITED` + `error.retryAfterSeconds` |
+| Slug taken | `.slugExists` | `SlugExists` | `LinkSenseSlugExistsException` | `SLUG_EXISTS` |
+| Validation | `.invalidInput(fieldErrors:)` | `InvalidInput(fieldErrors)` | `LinkSenseInvalidInputException` | `INVALID_INPUT` + `error.fieldErrors` |
+| Not found | `.notFound` | `NotFound` | `LinkSenseNotFoundException` | `NOT_FOUND` |
+
+Access-denied details carry the same fields everywhere: `serverMessage`, `upgradeRequired` (false when absent), `plan`, `currentUsage`, `limit` (each optional).
 
 ## License
 

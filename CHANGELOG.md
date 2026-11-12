@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0
+
+API unification with the Android, Flutter and React Native SDKs.
+
+### Breaking
+
+- **`configure(_:)` now throws.** A malformed SDK key throws
+  `LinkSenseError.invalidSdkKey` instead of logging "SDK disabled" and
+  returning. Call it with `try`.
+- **`rateLimited(retryAfter:)` is now `rateLimited(retryAfterSeconds:)`.**
+- **`customPathExists` is now `slugExists`.** Both `SLUG_EXISTS` and the
+  older `CUSTOM_PATH_EXISTS` wire codes map to it.
+- **New `accessDenied(AccessDeniedDetails)` case.** `ACCESS_DENIED` used to
+  arrive as `.server(code: "ACCESS_DENIED", ...)`. An exhaustive `switch` over
+  `LinkSenseError` must handle the new case.
+
+### Added
+
+- `Link.metadata: [String: LinkMetadataValue]?`. `LinkMetadataValue` is now
+  `Codable` and `Equatable`.
+- `AccessDeniedDetails`: `serverMessage`, `upgradeRequired` (false when the
+  server sends no details), `plan`, `currentUsage`, `limit`. Plan-limit
+  errors on `createLink` carry the quota fields; a platform-not-allowed
+  denial on `/install`, `/open` or `/deferred-match` carries only the message.
+
 ## 0.2.0
 
 ### Fixed

@@ -20,6 +20,8 @@ public struct Link: Decodable, Sendable, Equatable {
     public let ogImageUrl: URL?
     public let tags: [String]
     public let iosClipboardEnabled: Bool
+    /// The opaque JSON attached to the link; `nil` when it has none.
+    public let metadata: [String: LinkMetadataValue]?
     public let createdAt: Date
     public let updatedAt: Date
 
@@ -37,6 +39,7 @@ public struct Link: Decodable, Sendable, Equatable {
         case ogImageUrl = "social_image_url"
         case tags
         case iosClipboardEnabled = "ios_clipboard_enabled"
+        case metadata
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -56,6 +59,7 @@ public struct Link: Decodable, Sendable, Equatable {
         self.ogImageUrl = try container.decodeIfPresent(URL.self, forKey: .ogImageUrl)
         self.tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         self.iosClipboardEnabled = try container.decodeIfPresent(Bool.self, forKey: .iosClipboardEnabled) ?? false
+        self.metadata = try container.decodeIfPresent([String: LinkMetadataValue].self, forKey: .metadata)
         self.createdAt = try Link.decodeDate(container, key: .createdAt)
         self.updatedAt = try Link.decodeDate(container, key: .updatedAt)
     }
@@ -193,7 +197,7 @@ public struct UpdateLinkOptions: Sendable {
 
 /// Values allowed in the opaque `metadata` JSON. Matches the JSON shape
 /// the server accepts (≤4KB cap enforced server-side).
-public enum LinkMetadataValue: Encodable, Sendable {
+public enum LinkMetadataValue: Codable, Sendable, Equatable {
     case string(String)
     case int(Int)
     case double(Double)
@@ -201,6 +205,27 @@ public enum LinkMetadataValue: Encodable, Sendable {
     case array([LinkMetadataValue])
     case object([String: LinkMetadataValue])
     case null
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        // Bool before numbers (Foundation bridges true/false to 1/0), and Int
+        // before Double so integral numbers stay `.int`.
+        if container.decodeNil() {
+            self = .null
+        } else if let v = try? container.decode(Bool.self) {
+            self = .bool(v)
+        } else if let v = try? container.decode(Int.self) {
+            self = .int(v)
+        } else if let v = try? container.decode(Double.self) {
+            self = .double(v)
+        } else if let v = try? container.decode(String.self) {
+            self = .string(v)
+        } else if let v = try? container.decode([LinkMetadataValue].self) {
+            self = .array(v)
+        } else {
+            self = .object(try container.decode([String: LinkMetadataValue].self))
+        }
+    }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()

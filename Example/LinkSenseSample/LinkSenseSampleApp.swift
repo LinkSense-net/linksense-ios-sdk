@@ -7,14 +7,20 @@ struct LinkSenseSampleApp: App {
 
     init() {
         let cfg = SampleConfig.load()
-        LinkSense.shared.configure(
-            LinkSenseConfiguration(
-                sdkKey: cfg.sdkKey,
-                enableClipboard: false,
-                logLevel: .debug
+        do {
+            try LinkSense.shared.configure(
+                LinkSenseConfiguration(
+                    sdkKey: cfg.sdkKey,
+                    enableClipboard: false,
+                    logLevel: .debug
+                )
             )
-        )
-        LinkSense.shared.start()
+            LinkSense.shared.start()
+        } catch {
+            // Malformed key (e.g. the Secrets.xcconfig placeholder). Calls
+            // made later fail with `.notConfigured`, which the UI shows.
+            print("LinkSense.configure failed: \(error.localizedDescription)")
+        }
     }
 
     var body: some Scene {
